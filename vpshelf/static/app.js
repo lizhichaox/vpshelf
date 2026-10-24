@@ -1,13 +1,16 @@
 'use strict';
 const $=s=>document.querySelector(s);
-let rows=[], token='', selected=null;
+const TOKEN_KEY='vpshelf.accessToken';
+function savedToken(){try{return localStorage.getItem(TOKEN_KEY)||'';}catch{return '';}}
+function saveToken(value){try{if(value)localStorage.setItem(TOKEN_KEY,value);else localStorage.removeItem(TOKEN_KEY);}catch{/* Storage may be disabled; memory login still works. */}}
+let rows=[], token=savedToken(), selected=null;
 const names={bandwagon:'Bandwagon',lightsail:'AWS Lightsail',aliyun:'阿里云 ECS',generic:'Generic'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct=n=>Number.isFinite(n)?n.toFixed(1)+'%':'—';
 function bytes(n){if(!Number.isFinite(n))return '—';const units=['B','KiB','MiB','GiB','TiB'];let i=0;while(n>=1024&&i<4){n/=1024;i++;}return n.toFixed(i?1:0)+' '+units[i];}
 const date=n=>n?new Date(n*1000).toLocaleString():'—';
 const status={pending:'等待采集',online:'SSH 在线',unreachable:'SSH 不可达',unknown:'未配置 SSH'};
-async function api(path){const r=await fetch(path,{headers:token?{Authorization:'Bearer '+token}:{}});if(r.status===401){if(!$('#login').open)$('#login').showModal();throw Error('需要访问密钥');}if(!r.ok)throw Error('请求失败，请检查服务');return r.json();}
+async function api(path){const r=await fetch(path,{headers:token?{Authorization:'Bearer '+token}:{}});if(r.status===401){saveToken('');token='';if(!$('#login').open)$('#login').showModal();throw Error('需要访问密钥');}if(!r.ok)throw Error('请求失败，请检查服务');return r.json();}
 function bar(n,color='#478b6c'){const v=Number.isFinite(n)?Math.max(0,Math.min(100,n)):0;return `<div class="bar"><svg viewBox="0 0 100 4" preserveAspectRatio="none"><rect width="${v}" height="4" fill="${color}"/></svg></div>`;}
 function render(){
  const online=rows.filter(r=>r.status==='online').length;
@@ -23,7 +26,7 @@ function render(){
  }).join(''):`<div class="empty">${rows.length?'没有匹配的服务器。':'还没有服务器。<br>在 config.local.json 中添加服务器后重启服务。'}</div>`;
  $('#servers').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>detail(b.dataset.id));
 }
-async function refresh(){try{const data=await api('/api/servers');rows=data.servers;render();$('#updated').textContent='视图更新 '+new Date().toLocaleTimeString();$('#error').hidden=true;}catch(e){$('#error').textContent=e.message;$('#error').hidden=false;}}
+async function refresh(){try{const data=await api('/api/servers');rows=data.servers;render();$('#updated').textContent='视图更新 '+new Date().toLocaleTimeString();$('#error').hidden=true;return true;}catch(e){$('#error').textContent=e.message;$('#error').hidden=false;return false;}}
 async function detail(id){
  selected=id;const row=rows.find(r=>r.id===id);$('#detail-title').textContent=row.name;$('#details').textContent='';$('#chart').innerHTML='';$('#history-note').textContent='加载中…';if(!$('#detail').open)$('#detail').showModal();
  try{const samples=await api('/api/history?id='+encodeURIComponent(id));if(selected!==id)return;
@@ -33,4 +36,4 @@ async function detail(id){
  svg+='<text x="35" y="215" fill="#839087" font-size="11">24 小时前</text><text x="755" y="215" fill="#839087" font-size="11">现在</text>';$('#chart').innerHTML=svg;$('#history-note').textContent=samples.some(s=>s.metrics)?'采集失败处保留断点；历史保留 7 天，此处显示最近 24 小时。':'尚无成功的运行指标采样。';
  }catch(e){$('#history-note').textContent=e.message;}
 }
-$('#refresh').onclick=refresh;$('#search').oninput=render;$('#provider').onchange=render;$('#close').onclick=()=>{$('#detail').close();selected=null;};$('#auth').onclick=()=>$('#login').showModal();$('#login-cancel').onclick=()=>$('#login').close();$('#login-form').onsubmit=e=>{e.preventDefault();token=$('#token').value;$('#token').value='';$('#login').close();refresh();};refresh();setInterval(refresh,15000);
+$('#refresh').onclick=refresh;$('#search').oninput=render;$('#provider').onchange=render;$('#close').onclick=()=>{$('#detail').close();selected=null;};$('#auth').onclick=()=>$('#login').showModal();$('#login-cancel').onclick=()=>$('#login').close();$('#forget-token').onclick=()=>{saveToken('');token='';$('#token').value='';rows=[];render();$('#remember-token').checked=false;};$('#login-form').onsubmit=async e=>{e.preventDefault();token=$('#token').value.trim();const remember=$('#remember-token').checked;saveToken('');$('#token').value='';$('#login').close();if(await refresh()){if(remember)saveToken(token);}};refresh();setInterval(refresh,15000);

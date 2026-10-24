@@ -32,7 +32,7 @@ export VPSHELF_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(
 python3 -m vpshelf.app
 ```
 
-打开 http://127.0.0.1:8765 ，在面板输入 VPSHELF_TOKEN。没有配置 AWS/阿里云适配器时可以不安装 requirements.txt，核心服务和搬瓦工只依赖 Python 标准库。
+打开 http://127.0.0.1:8765 ，本机回环地址启动时，控制台会显示面板访问口令；在面板输入该口令。勾选“在此浏览器记住口令”（默认勾选）后，验证成功的口令会保存到当前站点的浏览器 localStorage，刷新页面、重启服务或浏览器后可自动连接。可通过“访问密钥 → 忘记口令”清除；失效口令会自动清除。非回环地址启动时不打印口令。没有配置 AWS/阿里云适配器时可以不安装 requirements.txt，核心服务和搬瓦工只依赖 Python 标准库。
 
 配置中的三个服务器是占位示例，**请替换或删除后启动**。首次启动没有演示数据，指标来自真实采集。使用空列表 `{"servers":[]}` 可以查看空状态界面。
 

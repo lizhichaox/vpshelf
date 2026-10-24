@@ -55,6 +55,16 @@ class CoreTests(unittest.TestCase):
             self.assertGreaterEqual(data[key],0);self.assertLessEqual(data[key],100)
         self.assertGreater(data["memory_total"],0);self.assertEqual(len(data["load"]),3)
 
+    def test_bandwagon_request_identifies_client(self):
+        import io
+        payload={'error':0,'plan_monthly_data':100,'data_counter':40}
+        with patch('vpshelf.collector.urllib.request.urlopen',return_value=io.BytesIO(json.dumps(payload).encode())) as call:
+            result=provider_info(self.server)
+            request=call.call_args.args[0]
+            self.assertTrue(request.get_header('User-agent').startswith('VPShelf/'))
+            self.assertEqual(request.get_header('Accept'),'application/json')
+            self.assertEqual(result['bandwidth']['remaining'],60)
+
     def test_safe_cloud_diagnostics(self):
         import socket
         import ssl

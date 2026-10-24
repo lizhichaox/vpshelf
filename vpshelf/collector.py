@@ -38,6 +38,13 @@ def safe_error(error):
     if isinstance(error, ProviderError):
         return f'KiwiVM 返回错误码 {error.code}；请检查 VEID 与 API Key 是否属于同一实例'
     if isinstance(error, urllib.error.HTTPError):
+        if error.code == 403:
+            server = (error.headers.get('Server', '') if error.headers else '').lower()
+            kind = (error.headers.get('Content-Type', '') if error.headers else '').lower()
+            if 'cloudflare' in server:
+                return 'HTTP 403：Cloudflare 拒绝访问；请检查网络出口或服务商访问限制'
+            if 'text/html' in kind:
+                return 'HTTP 403：收到 HTML 拒绝页，未取得 KiwiVM JSON 数据'
         return f'HTTP {error.code}；请检查 API 访问是否被代理或服务商拒绝'
     reason = error.reason if isinstance(error, urllib.error.URLError) else error
     if isinstance(reason, socket.gaierror):
@@ -97,7 +104,9 @@ def provider_info(server):
         return {}
     if provider == 'bandwagon':
         query=urllib.parse.urlencode({'veid':c['veid'], 'api_key':secret(c['api_key'])})
-        req=urllib.request.Request('https://api.64clouds.com/v1/getServiceInfo?'+query)
+        req=urllib.request.Request('https://api.64clouds.com/v1/getServiceInfo?'+query,
+            headers={'User-Agent': 'VPShelf/0.1 (+https://github.com/lizhichaox/vpshelf)',
+                     'Accept': 'application/json'})
         with urllib.request.urlopen(req, timeout=15) as response:
             data=json.load(response)
         if data.get('error',0):

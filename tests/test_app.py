@@ -1,5 +1,7 @@
 import json
 import tempfile
+import subprocess
+import sys
 import threading
 import time
 import unittest
@@ -9,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 from vpshelf.app import Store, Monitor, handler, load_config
-from vpshelf.collector import bandwidth, ssh_metrics, provider_info
+from vpshelf.collector import bandwidth, ssh_metrics, provider_info, REMOTE
 
 class CoreTests(unittest.TestCase):
     def setUp(self):
@@ -45,6 +47,14 @@ class CoreTests(unittest.TestCase):
             self.assertIn('StrictHostKeyChecking=yes',run.call_args.args[0])
             self.assertNotIn('shell',run.call_args.kwargs)
         with self.assertRaises(ValueError):ssh_metrics({'host':'-oProxyCommand=bad'})
+    @unittest.skipUnless(sys.platform == "linux", "Remote sampler requires Linux /proc")
+    def test_linux_sampler(self):
+        result=subprocess.run([sys.executable,"-c",REMOTE],text=True,capture_output=True,check=True,timeout=10)
+        data=json.loads(result.stdout)
+        for key in ("cpu","memory","disk"):
+            self.assertGreaterEqual(data[key],0);self.assertLessEqual(data[key],100)
+        self.assertGreater(data["memory_total"],0);self.assertEqual(len(data["load"]),3)
+
     def test_config_duplicates(self):
         path=Path(self.tmp.name)/'config.json';path.write_text(json.dumps({'servers':[self.server,self.server]}))
         with self.assertRaises(ValueError):load_config(path)

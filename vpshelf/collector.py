@@ -2,6 +2,9 @@
 import json
 import os
 import subprocess
+import socket
+import ssl
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -23,6 +26,38 @@ mem={k:int(v.split()[0])*1024 for k,v in (line.split(':',1) for line in Path('/p
 disk=shutil.disk_usage('/')
 print(json.dumps(dict(cpu=round(100*(1-(b[1]-a[1])/max(1,b[0]-a[0])),1),cores=os.cpu_count(),load=list(os.getloadavg()),memory=round(100*(1-mem.get('MemAvailable',mem['MemFree'])/mem['MemTotal']),1),memory_total=mem['MemTotal'],disk=round(100*disk.used/disk.total,1),disk_total=disk.total,rx=sum(max(0,m[k][0]-n[k][0]) for k in m if k in n)/dt,tx=sum(max(0,m[k][1]-n[k][1]) for k in m if k in n)/dt,uptime=float(Path('/proc/uptime').read_text().split()[0]))))
 '''
+
+class ProviderError(Exception):
+    def __init__(self, code):
+        self.code = int(code)
+        super().__init__('Provider rejected request')
+
+
+def safe_error(error):
+    """Allowlisted diagnostics only; never render raw exception URLs or SDK messages."""
+    if isinstance(error, ProviderError):
+        return f'KiwiVM 返回错误码 {error.code}；请检查 VEID 与 API Key 是否属于同一实例'
+    if isinstance(error, urllib.error.HTTPError):
+        return f'HTTP {error.code}；请检查 API 访问是否被代理或服务商拒绝'
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, socket.gaierror):
+        return 'DNS 解析失败：无法解析云 API 域名；请检查本机 DNS / 代理'
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        return 'TLS 证书验证失败：请检查 Python CA 证书和 HTTPS 代理证书'
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return '连接超时：请检查到云 API 的网络或代理'
+    if isinstance(reason, ConnectionRefusedError):
+        return '连接被拒绝：请检查代理是否启动、端口是否正确'
+    if isinstance(error, json.JSONDecodeError):
+        return 'API 返回了非 JSON 内容；可能被代理或网关拦截'
+    if isinstance(error, ModuleNotFoundError):
+        return '缺少云厂商 SDK；请安装 requirements.txt 中的依赖'
+    if isinstance(error, KeyError):
+        return '缺少配置、环境变量或 API 响应字段'
+    if isinstance(error, ValueError):
+        return 'API 返回的数据格式或流量计数无效'
+    return '请求失败：请检查网络、凭据和实例权限'
+
 
 def secret(value):
     if isinstance(value, str) and value.startswith('env:'):
@@ -66,7 +101,7 @@ def provider_info(server):
         with urllib.request.urlopen(req, timeout=15) as response:
             data=json.load(response)
         if data.get('error',0):
-            raise RuntimeError('Provider API error')
+            raise ProviderError(data['error'])
         return dict(region=data.get('node_datacenter'), bandwidth=bandwidth(data))
     if provider == 'lightsail':
         import boto3

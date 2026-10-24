@@ -55,6 +55,18 @@ class CoreTests(unittest.TestCase):
             self.assertGreaterEqual(data[key],0);self.assertLessEqual(data[key],100)
         self.assertGreater(data["memory_total"],0);self.assertEqual(len(data["load"]),3)
 
+    def test_safe_cloud_diagnostics(self):
+        import socket
+        import ssl
+        from urllib.error import URLError, HTTPError
+        from vpshelf.collector import safe_error, ProviderError
+        self.assertIn('DNS',safe_error(URLError(socket.gaierror(-2,'secret'))))
+        self.assertIn('TLS',safe_error(URLError(ssl.SSLCertVerificationError('secret'))))
+        self.assertIn('HTTP 403',safe_error(HTTPError('https://example/?api_key=secret',403,'secret',{},None)))
+        self.assertIn('错误码 5',safe_error(ProviderError(5)))
+        for exc in [RuntimeError('secret'),ValueError('secret'),KeyError('secret')]:
+            self.assertNotIn('secret',safe_error(exc))
+
     def test_config_duplicates(self):
         path=Path(self.tmp.name)/'config.json';path.write_text(json.dumps({'servers':[self.server,self.server]}))
         with self.assertRaises(ValueError):load_config(path)

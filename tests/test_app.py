@@ -1,0 +1,70 @@
+import json
+import tempfile
+import threading
+import time
+import unittest
+import urllib.request
+import urllib.error
+from pathlib import Path
+from unittest.mock import patch
+from http.server import ThreadingHTTPServer
+from vpshelf.app import Store, Monitor, handler, load_config
+from vpshelf.collector import bandwidth, ssh_metrics, provider_info
+
+class CoreTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store=Store(Path(self.tmp.name)/'data.db')
+        self.server={'id':'one','name':'Test','provider':'bandwagon','ssh':{'host':'test'},'cloud':{'veid':'1','api_key':'private'}}
+        self.monitor=Monitor({'servers':[self.server]},self.store)
+    def test_bandwidth_multiplier_and_overage(self):
+        b=bandwidth({'plan_monthly_data':100,'data_counter':90,'monthly_data_multiplier':0.5,'data_next_reset':123})
+        self.assertEqual((b['total'],b['used'],b['remaining']),(50,45,5))
+        self.assertAlmostEqual(b['remaining_percent'],10)
+        self.assertEqual(bandwidth({'plan_monthly_data':100,'data_counter':110})['remaining'],0)
+        with self.assertRaises(ValueError): bandwidth({'plan_monthly_data':0,'data_counter':0})
+    def test_failures_preserve_cloud_but_clear_metrics(self):
+        with patch('vpshelf.app.ssh_metrics',return_value={'cpu':12}),patch('vpshelf.app.provider_info',return_value={'state':'running'}) as cloud:
+            self.monitor.collect(self.server);self.monitor.collect(self.server)
+            self.assertEqual(cloud.call_count,1)
+        self.monitor.cloud_cache['one']['attempt']=0
+        with patch('vpshelf.app.ssh_metrics',side_effect=RuntimeError('secret')),patch('vpshelf.app.provider_info',side_effect=RuntimeError('api_key=secret')):
+            self.monitor.collect(self.server)
+        row=self.monitor.snapshot()[0]
+        self.assertEqual(row['status'],'unreachable');self.assertIsNone(row['metrics'])
+        self.assertEqual(row['cloud']['state'],'running');self.assertTrue(row['cloud_stale'])
+        self.assertNotIn('secret',json.dumps(row));self.assertEqual(len(self.store.history('one')),3)
+    def test_history_isolation(self):
+        self.store.save('one',{'checked_at':time.time(),'metrics':{'cpu':9}})
+        self.assertEqual(len(self.store.history('one')),1);self.assertEqual(self.store.history('two'),[])
+    def test_ssh_strict_and_no_shell(self):
+        with patch('vpshelf.collector.subprocess.run') as run:
+            run.return_value.stdout='{"cpu":12}'
+            self.assertEqual(ssh_metrics({'host':'my-host'})['cpu'],12)
+            self.assertIn('StrictHostKeyChecking=yes',run.call_args.args[0])
+            self.assertNotIn('shell',run.call_args.kwargs)
+        with self.assertRaises(ValueError):ssh_metrics({'host':'-oProxyCommand=bad'})
+    def test_config_duplicates(self):
+        path=Path(self.tmp.name)/'config.json';path.write_text(json.dumps({'servers':[self.server,self.server]}))
+        with self.assertRaises(ValueError):load_config(path)
+    def test_http_auth_and_private_routes(self):
+        import io
+        class Connection:
+            def __init__(self,request):
+                self.input=io.BytesIO(request);self.output=bytearray()
+            def makefile(self,*args):return self.input
+            def sendall(self,data):self.output.extend(data)
+        def request(path,auth=''):
+            c=Connection(('GET '+path+' HTTP/1.0\r\nAuthorization: '+auth+'\r\n\r\n').encode())
+            handler(self.monitor,'test-token')(c,('127.0.0.1',1234),None)
+            return bytes(c.output)
+        self.assertIn(b'401',request('/api/servers').splitlines()[0])
+        content=request('/api/servers','Bearer test-token')
+        self.assertIn(b'200',content.splitlines()[0])
+        self.assertNotIn(b'api_key',content);self.assertNotIn(b'private',content)
+        for path in ['/config.local.json','/../config.local.json','/api/unknown']:
+            self.assertIn(b'404',request(path,'Bearer test-token').splitlines()[0])
+        self.assertIn(b'VPShelf',request('/'))
+
+if __name__=='__main__':unittest.main()

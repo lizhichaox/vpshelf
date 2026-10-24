@@ -150,6 +150,8 @@ def main():
     worker=threading.Thread(target=monitor.run,daemon=True); worker.start()
     httpd=ThreadingHTTPServer((args.host,args.port),handler(monitor,token))
     print(f'VPShelf: http://{args.host}:{args.port}',flush=True)
+    if token and args.host in ('127.0.0.1', '::1', 'localhost'):
+        print(f'面板访问口令: {token}', flush=True)
     try: httpd.serve_forever()
     except KeyboardInterrupt: pass
     finally: monitor.stop.set(); httpd.server_close(); worker.join(timeout=45)

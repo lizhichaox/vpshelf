@@ -1,0 +1,29 @@
+{
+  "interval": 60,
+  "cloud_interval": 600,
+  "token": "env:VPSHELF_TOKEN",
+  "servers": [
+    {
+      "id": "bwg-la",
+      "name": "洛杉矶代理节点",
+      "provider": "bandwagon",
+      "region": "Los Angeles",
+      "ssh": {"host": "bwg-la", "user": "monitor", "port": 22, "identity_file": "~/.ssh/id_ed25519"},
+      "cloud": {"veid": "YOUR_VEID", "api_key": "env:BANDWAGON_API_KEY"}
+    },
+    {
+      "id": "aws-tokyo",
+      "name": "东京应用服务器",
+      "provider": "lightsail",
+      "ssh": {"host": "aws-tokyo", "user": "ubuntu"},
+      "cloud": {"region": "ap-northeast-1", "instance_name": "YOUR_INSTANCE_NAME", "profile": "default"}
+    },
+    {
+      "id": "aliyun-hz",
+      "name": "杭州开发服务器",
+      "provider": "aliyun",
+      "ssh": {"host": "aliyun-hz", "user": "monitor"},
+      "cloud": {"region": "cn-hangzhou", "instance_id": "YOUR_INSTANCE_ID", "access_key_id": "env:ALIBABA_CLOUD_ACCESS_KEY_ID", "access_key_secret": "env:ALIBABA_CLOUD_ACCESS_KEY_SECRET"}
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Only needed for Lightsail / Alibaba Cloud API adapters. Core + Bandwagon use stdlib.
+boto3>=1.35,<2
+alibabacloud-ecs20140526>=4,<8
+alibabacloud-tea-openapi>=0.3,<1
+alibabacloud-tea-util>=0.3,<1

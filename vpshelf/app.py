@@ -11,7 +11,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
-from .collector import provider_info, ssh_metrics, secret
+from .collector import provider_info, ssh_metrics, secret, safe_error
 
 
 def load_config(path):
@@ -73,13 +73,14 @@ class Monitor:
             except Exception:
                 row['status']='unreachable'; row['errors'].append('SSH 采集失败：请检查连接、主机指纹和远端 Python 3')
         cached=self.cloud_cache.get(s['id'],{})
-        if s.get('cloud') and now-cached.get('attempt',0)>=self.config.get('cloud_interval',600):
+        retry_interval = 60 if cached.get('error') else self.config.get('cloud_interval',600)
+        if s.get('cloud') and now-cached.get('attempt',0)>=retry_interval:
             cached=dict(cached,attempt=now)
             try:
                 cached.update(data=provider_info(s),updated=now,error=None)
-            except Exception:
-                # Never expose exception strings: SDK errors can contain credentials or URLs.
-                cached['error']='云 API 采集失败：请检查凭据、权限和实例配置'
+            except Exception as error:
+                cached['error']='云 API 采集失败：' + safe_error(error)
+                print(s['id'] + ': ' + cached['error'], flush=True)
             self.cloud_cache[s['id']]=cached
         row['cloud']=cached.get('data',{})
         row['cloud_updated_at']=cached.get('updated')

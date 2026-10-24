@@ -1,0 +1,21 @@
+services:
+  vpshelf:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      VPSHELF_TOKEN: ${VPSHELF_TOKEN:?Set a random token of at least 24 characters}
+      BANDWAGON_API_KEY: ${BANDWAGON_API_KEY:-}
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${ALIBABA_CLOUD_ACCESS_KEY_ID:-}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./config.local.json:/app/config.local.json:ro
+      - vpshelf-data:/app/data
+      # Mount dedicated SSH config / keys / known_hosts here when using SSH.
+      # - ./private-ssh:/home/shelf/.ssh:ro
+    restart: unless-stopped
+volumes:
+  vpshelf-data:

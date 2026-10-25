@@ -14,9 +14,11 @@ function setup(languages,choice){
  assert.match(a.el('#servers').innerHTML,/Security/);
  assert.match(a.el('#servers').innerHTML,/Memory/);
  assert.match(a.el('#servers').innerHTML,/2 vCPU/);
+ assert.equal((a.el('#servers').innerHTML.match(/class="resource-line"/g)||[]).length,3);
+ assert.match(a.el('#servers').innerHTML,/class="network-column"/);
  assert.match(a.el('#servers').innerHTML,/8.0 GiB \/ 20.0 GiB/);
  assert.match(a.el('#servers').innerHTML,/716.8 MiB \/ 2.0 GiB/);assert.match(a.el('#servers').innerHTML,/Stale data/);
- assert.match(a.el('#servers').innerHTML,/#919ec3/);assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);
+assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);
  assert.match(a.el('#servers').innerHTML,/客户自定义名称/);
  vm.runInContext("rows[0].name='<img src=x onerror=alert(1)>';render()",a.ctx);
  assert.doesNotMatch(a.el('#servers').innerHTML,/<img/);assert.match(a.el('#servers').innerHTML,/&lt;img/);

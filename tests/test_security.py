@@ -46,3 +46,22 @@ class SecurityTests(unittest.TestCase):
             row=m.snapshot()[0]
             self.assertEqual(row['status'],'online');self.assertEqual(row['security']['status'],'unknown')
             self.assertNotIn('secret',str(row))
+
+class LocalApiSecurityTests(unittest.TestCase):
+    def response(self,token,headers):
+        import io,tempfile
+        from pathlib import Path
+        from vpshelf.app import Monitor,Store,handler
+        class Connection:
+            def __init__(self):self.output=bytearray()
+            def makefile(self,*args):return io.BytesIO(('GET /api/servers HTTP/1.0\r\n'+headers+'\r\n\r\n').encode('latin-1'))
+            def sendall(self,data):self.output.extend(data)
+        with tempfile.TemporaryDirectory() as tmp:
+            m=Monitor({'servers':[]},Store(Path(tmp)/'db'))
+            connection=Connection();handler(m,token)(connection,('127.0.0.1',123),None)
+            return bytes(connection.output)
+    def test_no_token_rejects_foreign_host(self):
+        self.assertIn(b'403',self.response('','Host: attacker.example').splitlines()[0])
+        self.assertIn(b'200',self.response('','Host: localhost:8765').splitlines()[0])
+    def test_non_ascii_auth_does_not_crash(self):
+        self.assertIn(b'401',self.response('correct-token','Host: localhost\r\nAuthorization: Bearer \xe9').splitlines()[0])

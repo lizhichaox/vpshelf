@@ -127,13 +127,20 @@ def handler(monitor,token):
             self.send_header('Content-Type',kind+'; charset=utf-8')
             self.send_header('Cache-Control','no-store')
             self.send_header('X-Content-Type-Options','nosniff')
-            self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+            self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
             self.end_headers(); self.wfile.write(body)
         def do_GET(self):
             url=urlsplit(self.path)
             if url.path.startswith('/api/'):
+                if not token:
+                    try:
+                        hostname=urlsplit('http://'+self.headers.get('Host','')).hostname
+                    except ValueError:
+                        hostname=None
+                    if hostname not in ('localhost','127.0.0.1','::1'):
+                        return self.send(403,b'{"error":"Local host required"}')
                 auth=self.headers.get('Authorization','')
-                if token and not hmac.compare_digest(auth,'Bearer '+token):
+                if token and not hmac.compare_digest(auth.encode('utf-8'),('Bearer '+token).encode('utf-8')):
                     return self.send(401,b'{"error":"Authentication required"}')
                 if url.path=='/api/servers':
                     data={'servers':monitor.snapshot(),'interval':monitor.config.get('interval',60)}

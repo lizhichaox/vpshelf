@@ -15,6 +15,8 @@ from vpshelf.collector import bandwidth, ssh_metrics, provider_info, REMOTE
 
 class CoreTests(unittest.TestCase):
     def setUp(self):
+        audit=patch('vpshelf.app.collect_security',return_value={'status':'unknown','checked_at':time.time(),'rules':[]})
+        audit.start();self.addCleanup(audit.stop)
         self.tmp=tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.store=Store(Path(self.tmp.name)/'data.db')

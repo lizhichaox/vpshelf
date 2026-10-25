@@ -15,4 +15,5 @@ function translateStatic(){
  document.querySelectorAll('[data-i18n]').forEach(el=>{if(!originalStaticText.has(el))originalStaticText.set(el,el.textContent);el.textContent=t(originalStaticText.get(el));});
  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>el.placeholder=t(el.dataset.i18nPlaceholder));
  document.querySelectorAll('[data-i18n-label]').forEach(el=>el.setAttribute('aria-label',t(el.dataset.i18nLabel)));
+ window.refreshDropdowns?.();
 }

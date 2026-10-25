@@ -18,8 +18,11 @@ function setup(languages,choice){
  assert.doesNotMatch(a.el('#servers').innerHTML,/class="network-column"/);
  assert.match(a.el('#servers').innerHTML,/class="resource-line network-line"/);
  assert.match(a.el('#servers').innerHTML,/Network/);
- assert.match(a.el('#servers').innerHTML,/8.0 GiB \/ 20.0 GiB/);
- assert.match(a.el('#servers').innerHTML,/716.8 MiB \/ 2.0 GiB/);assert.match(a.el('#servers').innerHTML,/Stale data/);
+ assert.equal((a.el('#servers').innerHTML.match(/class="resource-gauge"/g)||[]).length,3);
+ assert.match(a.el('#servers').innerHTML,/resource-used">8.0 GiB/);
+ assert.match(a.el('#servers').innerHTML,/resource-total"> \/ 20.0 GiB/);
+ assert.match(a.el('#servers').innerHTML,/resource-used">716.8 MiB/);
+ assert.match(a.el('#servers').innerHTML,/resource-total"> \/ 2.0 GiB/);assert.match(a.el('#servers').innerHTML,/Stale data/);
 assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);
  assert.match(a.el('#servers').innerHTML,/客户自定义名称/);
  vm.runInContext("rows[0].name='<img src=x onerror=alert(1)>';render()",a.ctx);

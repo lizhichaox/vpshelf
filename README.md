@@ -1,23 +1,40 @@
 # VPShelf
 
-A small shelf for your servers. 面向个人、10 台以内 VPS 的轻量总览面板。
+**A small shelf for your servers.**
 
-Python + SQLite + 原生 HTML/CSS/JavaScript，无前端构建、无 Agent、无需 Redis。
+**English** · [简体中文](README.zh-CN.md)
 
-## 已实现
+A compact, self-hosted dashboard for a personal fleet of VPS instances. Bring BandwagonHost, AWS Lightsail, Alibaba Cloud ECS, and generic Linux servers into one view—with resource metrics, provider information, transfer balances, and read-only security checks.
 
-- Bandwagon / AWS Lightsail / 阿里云 ECS / 通用 Linux VPS。
-- SSH 采集 CPU 使用率、1/5/15 分钟负载、内存、根分区磁盘、收发速率、运行时间。
-- 搬瓦工周期总流量、已用、剩余、重置时间；低于 20% / 10% 颜色提醒。
-- Lightsail 实例状态、地区、公网 IP、套餐；ECS 状态、地区、规格、到期时间。
-- 服务器搜索、厂商筛选、响应式界面、最近 24 小时 CPU/内存趋势。
-- 运行数据默认每 60 秒采集，云 API 默认每 600 秒采集；历史保留 7 天。
-- SSH 和云 API 错误独立显示。失败时清空运行指标，保留并标记上次云数据。
-- 私有 JSON 配置、环境变量引用、Bearer token 验证、严格 SSH 主机指纹检查。
+Built for small fleets, typically fewer than 10 servers. Python + SQLite + vanilla JavaScript. No frontend build step, Redis, or monitoring agent.
 
-## 本地运行
+## Features
 
-需要 Python 3.10+、OpenSSH 客户端；目标服务器需要 Linux + Python 3。
+- **One compact overview:** search, provider filtering, resource usage, transfer balances, and security status.
+- **SSH metrics:** CPU, memory, root disk usage, load averages, uptime, and network rates.
+- **BandwagonHost transfer:** used, remaining, allowance, and billing-cycle reset time from KiwiVM. Remaining transfer below 20% / 10% is highlighted.
+- **Cloud details:** instance state, region, availability zone, addresses, hardware, and provider-specific plan information.
+- **Security signals:** SSH authentication events and configuration checks, with evidence in the details view.
+- **History:** 24-hour CPU/memory charts, backed by seven days of samples in SQLite.
+- **English and Chinese:** follows browser language preferences, with a persistent manual override.
+- **Private credentials:** local configuration or environment variable references. Optional browser token persistence.
+
+## Provider support
+
+| Provider | Cloud API data | Required credentials / permissions |
+| --- | --- | --- |
+| BandwagonHost | Transfer used, remaining, total, reset time, datacenter | VEID + KiwiVM API key |
+| AWS Lightsail | State, region, zone, IPs, hardware, bundle price and transfer allowance, CPU burst balance | AWS credential chain or access keys; `lightsail:GetInstance`, `lightsail:GetBundles`, `lightsail:GetInstanceMetricData` |
+| Alibaba Cloud ECS | State, region, zone, IPs, CPU/RAM, OS, expiry, billing type, bandwidth | RAM AccessKey; `ecs:DescribeInstances` |
+| Generic Linux | SSH metrics and security checks | SSH key authentication |
+
+SSH and cloud collection are independent. Configure either, or both. All providers use SSH for guest memory, disk, load, and security checks.
+
+**Lightsail's monthly transfer allowance is not a remaining-transfer balance.** ECS fixed-bandwidth plans display bandwidth, not a fictional monthly quota. Network-interface counters are operational metrics, not billing data.
+
+## Quick start
+
+Requires Python 3.10+ and an OpenSSH client on the monitoring host. Target servers need Linux and Python 3.
 
 ```sh
 git clone https://github.com/lizhichaox/vpshelf.git
@@ -28,98 +45,110 @@ pip install -r requirements.txt
 cp config.example.json config.local.json
 chmod 600 config.local.json
 export VPSHELF_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-# 修改 config.local.json，并设置其中引用的环境变量
+```
+
+Edit `config.local.json`: replace or remove the placeholder servers and set any referenced environment variables. Then start:
+
+```sh
 python3 -m vpshelf.app
 ```
 
-打开 http://127.0.0.1:8765 ，本机回环地址启动时，控制台会显示面板访问口令；在面板输入该口令。勾选“在此浏览器记住口令”（默认勾选）后，验证成功的口令会保存到当前站点的浏览器 localStorage，刷新页面、重启服务或浏览器后可自动连接。可通过“访问密钥 → 忘记口令”清除；失效口令会自动清除。非回环地址启动时不打印口令。没有配置 AWS/阿里云适配器时可以不安装 requirements.txt，核心服务和搬瓦工只依赖 Python 标准库。
+Open **[http://127.0.0.1:8765](http://127.0.0.1:8765)**. Enter the dashboard token printed in the startup console. “Remember on this browser” stores a successfully verified token in localStorage; use **Access token → Forget token** to clear it.
 
-配置中的三个服务器是占位示例，**请替换或删除后启动**。首次启动没有演示数据，指标来自真实采集。使用空列表 `{"servers":[]}` 可以查看空状态界面。
+For a first test, add just one server. There is no demo data; an empty `servers` array displays the empty state. The core app, SSH collector, and BandwagonHost adapter use only Python's standard library; the SDK dependencies are needed for Lightsail and ECS.
 
-## 私有配置
+## Configuration
 
-使用 `config.local.json`（已被 Git 和 Docker 构建上下文排除）。可直接填入密钥，或使用 `env:VARIABLE_NAME` 从进程环境变量读取。不会自动加载 `.env`；Docker Compose 支持通过 `.env` 插值。
+A minimal SSH-only configuration:
 
-- `id`：唯一、稳定，仅字母/数字/下划线/连字符。用于历史关联。
-- `name`：显示名称；`region`：可选手动地区，成功取得云信息后更新。
-- `provider`：`bandwagon` / `lightsail` / `aliyun` / `generic`。
-- `ssh` 和 `cloud` 至少提供一项；可以先只接 SSH，随后再配置云 API。
-- `interval`：15～3600 秒；`cloud_interval`：300～86400 秒。
-- `token`：本机回环地址可省略。绑定非回环地址必须至少 24 字符。
+```json
+{
+  "token": "env:VPSHELF_TOKEN",
+  "interval": 60,
+  "cloud_interval": 600,
+  "security_interval": 900,
+  "servers": [
+    {
+      "id": "my-server",
+      "name": "My VPS",
+      "provider": "generic",
+      "ssh": {
+        "host": "my-ssh-alias",
+        "user": "monitor",
+        "port": 22,
+        "identity_file": "~/.ssh/id_ed25519"
+      }
+    }
+  ]
+}
+```
 
-### SSH
+| Setting | Behavior |
+| --- | --- |
+| `id` | Stable, unique server ID: letters, digits, `_`, or `-`. Used to associate history. |
+| `provider` | `bandwagon`, `lightsail`, `aliyun`, or `generic`. |
+| `ssh` / `cloud` | At least one is required. Cloud examples are in [config.example.json](config.example.json). |
+| `interval` | SSH metrics, default 60 seconds; range 15–3600. |
+| `cloud_interval` | Cloud data, default 600 seconds; range 300–86400. Failed cloud requests retry after 60 seconds. |
+| `security_interval` | Security checks, default 900 seconds; range 60–86400. |
+| `token` | Dashboard access token. Non-loopback binding requires at least 24 characters. |
 
-`host` 可以是 IP、域名或 `~/.ssh/config` 中的别名。支持 `user`、`port`、`identity_file`。先在终端连接一次、核对服务器指纹，并完成密钥登录；应用不自动信任新主机、不接受交互式密码。
+Changes to server configuration require a restart. Refreshing the dashboard reads the latest cached samples; it does not force a cloud API request.
 
-采集只读取 `/proc` 和根分区容量，无需 root、无需安装 Agent。网络速率取一秒内除 loopback 外所有网卡字节增量；含隧道/虚拟网卡，可能重复统计，**不用于计费**。磁盘指标仅根分区 `/`。
+### Private credentials
 
-### Bandwagon
+Keep secrets in `config.local.json`, which is excluded from Git and the Docker build context, or reference environment variables with `env:VARIABLE_NAME`.
 
-在 KiwiVM 获取 VEID 和 API key，分别填入 `cloud.veid`、`cloud.api_key`。调用 `getServiceInfo`。流量采用 API 的 `plan_monthly_data`、`data_counter`，都乘以 `monthly_data_multiplier`，按 GiB/TiB 显示；`data_next_reset` 单独展示，不当作实例到期日。重置周期不是固定自然月。
+The Python app does not load `.env` automatically. Export variables in the process environment; for a persistent service, configure them in its service environment. Docker Compose supports `.env` interpolation. Keep dashboard tokens and cloud API keys separate.
 
-接口地址：https://api.64clouds.com/v1/getServiceInfo
-官方接口说明：https://kiwivm.64clouds.com/kiwivm-api.php
+### SSH connection
+
+`host` accepts an IP, hostname, or alias from `~/.ssh/config`. Set `port` explicitly for nonstandard ports; it defaults to 22. The collector honors SSH config options such as `ProxyJump` and identity selection.
+
+Connect manually once, verify the host fingerprint, and confirm key-based authentication works. VPShelf uses batch mode and strict host-key checking; it does not automatically trust new hosts or prompt for passwords.
+
+Metrics require no root access. Security logs and `sshd -T` may require elevated read permissions. The security collector tries existing `sudo -n` permissions, then normal user access, without changing permissions or waiting for a password.
+
+### BandwagonHost
+
+Obtain the VEID and API key from **KiwiVM → API**:
+
+```json
+"cloud": {
+  "veid": "YOUR_VEID",
+  "api_key": "env:BANDWAGON_API_KEY"
+}
+```
+
+VPShelf calls `getServiceInfo`. It multiplies both `plan_monthly_data` and `data_counter` by `monthly_data_multiplier`, displays binary GiB/TiB, and shows `data_next_reset` separately from instance expiry. The billing cycle need not start on the first day of a calendar month.
 
 ### AWS Lightsail
 
-设置 `region`、`instance_name`。默认使用 boto3 凭据链；也可以提供 `profile`，或 `access_key_id` / `secret_access_key` / `session_token`。示例中的 `profile: default` 需要本机已配置 AWS profile；若仅使用环境变量或实例角色，请删除 `profile`。
+Set `region` and `instance_name`. Authentication supports boto3's default credential chain, a named `profile`, or explicit `access_key_id`, `secret_access_key`, and optional `session_token`.
 
-最小操作权限：`lightsail:GetInstance`。内存/磁盘/负载来自 SSH，不伪装成 CloudWatch 数据。第一版没有 Lightsail 计费流量余额。
+The example config uses `profile: default`. Remove `profile` if using environment variables or a workload role without a configured AWS profile. Use a dedicated read-only IAM identity with the three actions listed in the provider table; scope access by region where appropriate.
 
-API：https://docs.aws.amazon.com/lightsail/2016-11-28/api-reference/API_GetInstance.html
+### Alibaba Cloud ECS
 
-### 阿里云 ECS
+Set `region`, `instance_id`, `access_key_id`, and `access_key_secret`. Use a dedicated RAM identity with `ecs:DescribeInstances`. The current adapter supports AccessKeys, not Alibaba STS tokens. Pay-as-you-go instances may not have an expiry date.
 
-设置 `region`、`instance_id`、`access_key_id`、`access_key_secret`。建议使用只读 RAM 身份，至少授权 `ecs:DescribeInstances`。第一版使用长期 AccessKey，不支持 STS token。按量付费实例可能没有到期时间。
+## Security checks
 
-API：https://www.alibabacloud.com/help/en/ecs/developer-reference/api-ecs-2014-05-26-describeinstances
+The collector reads the last 24 hours of systemd journal entries for `ssh.service` / `sshd.service`, plus global `sshd -T` settings and the reboot-required marker.
 
-## Docker
+| Rule | Trigger | Result |
+| --- | --- | --- |
+| Failed logins | ≥20 / hour; ≥100 / hour | Review; high risk |
+| Invalid-user attempts | ≥10 / hour | Review |
+| Root password / keyboard-interactive success | Any in 24 hours | High risk; investigate |
+| Successful login outside trusted ranges | Any in 24 hours, when configured | High risk; investigate |
+| Password or keyboard-interactive authentication enabled | Global SSH settings | Review alongside MFA / AuthenticationMethods |
+| Root password login permitted | Global SSH settings | Review |
+| Empty-password authentication enabled | Global SSH settings | High-risk configuration |
+| `/var/run/reboot-required` exists | System requests reboot | Review |
+| Logs unavailable, empty, truncated, or config unreadable | Incomplete visibility | Unknown / partial coverage |
 
-```sh
-docker compose up -d --build
-```
-
-须先准备私有配置和环境变量。Compose 默认仅映射本机 8765；数据存储在命名卷。SSH 需要按 compose.yaml 注释挂载专用密钥目录和 `known_hosts`，确保容器 UID 10001 能读取，且私钥权限满足 OpenSSH 要求。容器内私钥路径使用 `/home/shelf/.ssh/...`。配置使用 SSH 别名时也需挂载相应 SSH config。AWS profile 需要额外挂载凭据文件，或删除 profile 改用环境变量。
-
-默认推荐本地运行。远程访问可使用 SSH tunnel；公开部署应置于支持 HTTPS 的认证反向代理后，令牌不要放进 URL。内置 HTTP 服务面向低并发个人使用，不是公共多租户服务。
-
-## 测试
-
-```sh
-python3 -m unittest discover -s tests -v
-node --check vpshelf/static/app.js
-```
-
-测试覆盖计费倍率与超额、采集失败与缓存、历史隔离、SSH 安全选项、配置重复 ID、HTTP 认证和私有路径拒绝。API/SSH 测试使用替身，不连接真实云账户。接入真实账户后应核对首次流量读数与 KiwiVM 面板。
-
-## 目前边界
-
-手动维护服务器清单；不自动发现实例、不写入云资源、不执行重启操作。告警为界面提示，暂不发送邮件或消息。配置修改后需重启。前端刷新只读取缓存，不强制调用云 API。尚未添加开源许可证；公开仓库不等于授予第三方使用许可，许可证由仓库所有者选定。
-
-## 界面语言
-
-默认按浏览器首选语言自动选择中文或英文；页面顶部可切换自动、中文和 English，手动选择保存在当前浏览器。日期和时间随界面语言格式化，服务器自定义名称保持原样。浏览器标签页使用本地 SVG favicon，无外部依赖。
-
-## 只读安全检查
-
-每台服务器默认每 15 分钟检查一次（全局 `security_interval` 可配置为 60～86400 秒）。通过现有 SSH 连接运行只读命令，无需 Agent；不安装软件、不修改 SSH/防火墙配置。非 root 用户先尝试已有的 `sudo -n` 权限，失败后以普通用户读取；不会修改 sudo 权限或等待密码。
-
-| 规则 | 窗口与阈值 | 状态 |
-|---|---|---|
-| Failed 登录记录 | 1 小时 ≥20 条；≥100 条 | 注意；高风险 |
-| Invalid user 记录 | 1 小时 ≥10 条 | 注意 |
-| root 密码/keyboard-interactive 成功登录 | 24 小时内至少一次 | 高风险，需人工核实 |
-| 不在信任范围内的成功登录 | 配置 trusted_login_ips 后，24 小时内至少一次 | 高风险，需人工核实 |
-| PasswordAuthentication / KbdInteractiveAuthentication | 全局配置开启 | 注意，结合 MFA 和 AuthenticationMethods 核实 |
-| PermitRootLogin=yes 且密码或交互认证开启 | 全局配置允许 | 注意 |
-| PermitEmptyPasswords=yes | 全局配置开启 | 高风险配置 |
-| /var/run/reboot-required | 文件存在 | 注意 |
-| 日志不可读、为空、截断，或 sshd -T 不可读 | 不能完成覆盖 | 未知或部分检查 |
-
-状态优先级：高风险 > 注意 > 未知 > 正常。正常表示在已检查范围内未触发规则，不证明服务器没有入侵或漏洞。没有信任来源配置时不会把所有成功登录误判为异常；详情会明确显示未配置，并列出最近 5 条成功登录供核对。
-
-每台服务器可增加以下可选字段（支持 IPv4 / IPv6 地址或 CIDR）：
+Add trusted login sources per server to enable unfamiliar-source detection:
 
 ```json
 "security": {
@@ -127,6 +156,49 @@ node --check vpshelf/static/app.js
 }
 ```
 
-日志来源为 systemd journal 的 ssh.service / sshd.service，最近 24 小时最多读取 5001 条。暂不读取轮转 auth.log、不保证覆盖停机或日志清理之前的事件；失败尝试统计是记录条数而非去重后的攻击者数量。sshd -T 读取全局配置，不评估 Match 条件或云安全组。检查失败后清除原来的正常结论；SSH 不可达时原记录标为过期。
+Without this list, recent successful logins are shown for review without classifying unfamiliar sources. Status precedence is **high risk → review → unknown → OK**. A disconnected SSH host marks prior security results as stale.
 
-来源：[systemd journalctl](https://www.freedesktop.org/software/systemd/man/255/journalctl.html)、[OpenSSH 配置](https://man.openbsd.org/sshd_config)。
+An OK result means no rule fired within the inspected scope. This is not a vulnerability scan or proof that a host is uncompromised. Checks do not modify servers. Collection is capped at 5001 journal entries; rotated `auth.log`, conditional SSH `Match` rules, cloud firewalls, and package vulnerability databases are not evaluated.
+
+## Persistent deployment
+
+Run VPShelf on an always-on host to collect continuously. Closing the browser is fine; stopping the service or putting the monitoring machine to sleep pauses collection. Existing samples remain on disk; missed guest metrics are not backfilled. Provider transfer counters are fetched again when collection resumes.
+
+Start the app under your preferred service manager with an explicit working directory, interpreter, configuration path, and database path:
+
+```sh
+/path/to/vpshelf/.venv/bin/python -m vpshelf.app \
+  --config /path/to/vpshelf/config.local.json \
+  --db /path/to/vpshelf/data/vpshelf.sqlite3
+```
+
+### Docker
+
+```sh
+docker compose up -d --build
+```
+
+Prepare the private config and environment variables first. Compose binds port 8765 to localhost and keeps SQLite in a named volume. For SSH, mount a dedicated SSH directory containing keys, config, and verified `known_hosts` at `/home/shelf/.ssh:ro`; container UID 10001 must be able to read it. Use container-visible key paths. AWS profiles require a separate credentials mount, or use environment credentials instead.
+
+The built-in HTTP server is intended for personal, low-concurrency use. Keep it on localhost or access it through an SSH tunnel. Public deployments should use an HTTPS reverse proxy with access controls. Non-loopback startup does not print the access token.
+
+## Troubleshooting
+
+- **SSH unreachable:** check hostname, port, username, key, host fingerprint, and remote `python3`. Confirm the same alias works in a terminal.
+- **Cloud collection failed:** inspect the displayed network, TLS, HTTP, SDK, or configuration error. Check region, instance identifier, credentials, and read permissions.
+- **Security unknown:** check journal availability and existing read/sudo permissions. Empty or incomplete logs never count as full coverage.
+- **No transfer balance:** BandwagonHost needs KiwiVM credentials; SSH counters cannot substitute for billing counters. Lightsail currently shows allowance only.
+- **Data looks stale:** confirm the collector is running and the monitoring host is awake. Cloud failures preserve the previous data with a stale flag.
+
+## Development
+
+```sh
+python3 -m unittest discover -s tests -v
+node tests/test_i18n.cjs
+node tests/test_dropdowns.cjs
+node --check vpshelf/static/app.js
+```
+
+Tests cover transfer math, error/cache behavior, HTTP access control, SSH options, security rules, language switching, and dropdown keyboard interaction. Cloud and SSH integrations use test doubles; the Linux sampler test runs against `/proc` in Linux CI.
+
+Current scope: manual server inventory, local history, read-only collection, and on-screen alerts. No automatic discovery, resource-control actions, or outbound notifications. The repository does not currently include a license file.

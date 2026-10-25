@@ -15,7 +15,9 @@ function setup(languages,choice){
  assert.match(a.el('#servers').innerHTML,/Memory/);
  assert.match(a.el('#servers').innerHTML,/2 vCPU/);
  assert.equal((a.el('#servers').innerHTML.match(/class="resource-line"/g)||[]).length,3);
- assert.match(a.el('#servers').innerHTML,/class="network-column"/);
+ assert.doesNotMatch(a.el('#servers').innerHTML,/class="network-column"/);
+ assert.match(a.el('#servers').innerHTML,/class="resource-line network-line"/);
+ assert.match(a.el('#servers').innerHTML,/Network/);
  assert.match(a.el('#servers').innerHTML,/8.0 GiB \/ 20.0 GiB/);
  assert.match(a.el('#servers').innerHTML,/716.8 MiB \/ 2.0 GiB/);assert.match(a.el('#servers').innerHTML,/Stale data/);
 assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);

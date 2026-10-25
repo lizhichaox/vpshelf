@@ -3,7 +3,7 @@ const root=path.join(__dirname,'../vpshelf/static');
 function setup(languages,choice){
  const nodes=new Map();const storage=new Map(choice?[['vpshelf.language',choice]]:[]);
  const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',checked:true,open:false,handlers:{},addEventListener(k,f){this.handlers[k]=f},querySelectorAll(){return []},showModal(){this.open=true},close(){this.open=false;this.handlers.close?.()}});return nodes.get(id)};
- const row={id:'example',name:'客户自定义名称',provider:'bandwagon',status:'online',region:'LA',host:'node',errors:[],metrics:{cpu:12,cores:2,memory:35,memory_total:2147483648,disk:40,rx:10,tx:20},cloud_stale:true,cloud:{bandwidth:{remaining:50,total:100,remaining_percent:50,reset_at:123}}};
+ const row={id:'example',name:'客户自定义名称',provider:'bandwagon',status:'online',region:'LA',host:'node',errors:[],metrics:{cpu:12,cores:2,memory:35,memory_total:2147483648,disk:40,disk_total:21474836480,rx:10,tx:20},cloud_stale:true,cloud:{bandwidth:{remaining:50,total:100,remaining_percent:50,reset_at:123}}};
  const ctx=vm.createContext({document:{documentElement:{},querySelector:el,querySelectorAll:()=>[]},navigator:{languages},window:{addEventListener(){}},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async()=>({ok:true,status:200,json:async()=>({servers:[row]})}),setInterval(){},console});
  for(const file of ['i18n.js','app.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),ctx);
  return {ctx,el,storage};
@@ -14,6 +14,7 @@ function setup(languages,choice){
  assert.match(a.el('#servers').innerHTML,/Security/);
  assert.match(a.el('#servers').innerHTML,/Memory/);
  assert.match(a.el('#servers').innerHTML,/2 vCPU/);
+ assert.match(a.el('#servers').innerHTML,/8.0 GiB \/ 20.0 GiB/);
  assert.match(a.el('#servers').innerHTML,/716.8 MiB \/ 2.0 GiB/);assert.match(a.el('#servers').innerHTML,/Stale data/);
  assert.match(a.el('#servers').innerHTML,/#919ec3/);assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);
  assert.match(a.el('#servers').innerHTML,/客户自定义名称/);

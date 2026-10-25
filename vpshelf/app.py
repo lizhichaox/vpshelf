@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import ipaddress
 import argparse
 import concurrent.futures
 import hmac
@@ -11,6 +12,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
+from .security import collect_security
 from .collector import provider_info, ssh_metrics, secret, safe_error
 
 
@@ -23,12 +25,16 @@ def load_config(path):
         ids.add(s['id'])
         if s.get('provider') not in ('bandwagon','lightsail','aliyun','generic'):
             raise ValueError('Unknown provider')
+        for address in s.get('security',{}).get('trusted_login_ips',[]):
+            ipaddress.ip_network(address,strict=False)
         if 'ssh' not in s and not s.get('cloud'):
             raise ValueError('A server needs SSH or cloud configuration')
     if not 15 <= data.get('interval',60) <= 3600:
         raise ValueError('interval must be 15..3600 seconds')
     if not 300 <= data.get('cloud_interval',600) <= 86400:
         raise ValueError('cloud_interval must be 300..86400 seconds')
+    if not 60 <= data.get('security_interval',900) <= 86400:
+        raise ValueError('security_interval must be 60..86400 seconds')
     return data
 
 
@@ -61,6 +67,7 @@ class Monitor:
         self.lock=threading.Lock()
         self.rows={s['id']:dict(id=s['id'],name=s.get('name',s['id']),provider=s['provider'],region=s.get('region',''),host=s.get('ssh',{}).get('host',''),status='pending',cloud={},metrics=None) for s in config.get('servers',[])}
         self.cloud_cache={}
+        self.security_cache={}
         self.stop=threading.Event()
     def collect(self,s):
         now=time.time()
@@ -87,6 +94,16 @@ class Monitor:
         row['cloud_stale']=bool(cached.get('error'))
         if cached.get('error'): row['errors'].append(cached['error'])
         if row['cloud'].get('region'): row['region']=row['cloud']['region']
+        audit=self.security_cache.get(s['id'])
+        if s.get('ssh') and (not audit or now-audit['checked_at'] >= self.config.get('security_interval',900)):
+            try:
+                audit=collect_security(s['ssh'],s.get('security',{}))
+            except Exception:
+                audit=dict(status='unknown',checked_at=now,rules=[dict(code='collection_failed',level='unknown',evidence={})],partial=True)
+            self.security_cache[s['id']]=audit
+        row['security']=audit or dict(status='unknown',checked_at=None,rules=[],partial=True)
+        if row['status']=='unreachable':
+            row['security']=dict(row['security'],status='unknown',stale=True)
         self.store.save(s['id'],row)
         with self.lock: self.rows[s['id']]=row
     def run(self):
@@ -126,7 +143,7 @@ def handler(monitor,token):
                     data=monitor.store.history(sid)
                 else: return self.send(404,b'{}')
                 return self.send(200,json.dumps(data).encode())
-            files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css')}
+            files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/i18n.js':('i18n.js','text/javascript'),'/favicon.svg':('favicon.svg','image/svg+xml'),'/favicon.ico':('favicon.svg','image/svg+xml'),'/style.css':('style.css','text/css')}
             if url.path not in files: return self.send(404,b'Not found','text/plain')
             name,kind=files[url.path]
             self.send(200,(static/name).read_bytes(),kind)

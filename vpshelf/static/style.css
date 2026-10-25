@@ -30,3 +30,5 @@ button,input,select{border-color:#dfe6e1;border-radius:7px;transition:background
 @media(min-width:1001px){h1{font-size:19px;font-weight:600}.intro p{color:#91a096}.toolbar{padding-top:12px;padding-bottom:12px}.filters{align-items:center}.filters input{height:32px;font-size:12px;border-radius:7px}footer{color:#97a198}.server{gap:18px}.stat{border-radius:9px}}
 @media(max-width:650px){.select-trigger{min-width:130px}.actions .select-trigger{min-width:85px;gap:10px;height:29px;padding:0 8px;font-size:11px}.toolbar{border-radius:10px 10px 0 0}.filters .select-control{max-width:100%}.select-menu{max-width:85vw}.panel{overflow:visible}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+.footer-brand{display:flex;align-items:center;gap:10px;flex-shrink:0}.footer-divider{opacity:.35}.repo-link{display:inline-flex;align-items:center;gap:4px;color:#7d9183;text-decoration:none;border-radius:4px;transition:color .15s}.repo-link:hover{color:#315f4d}.repo-link:focus-visible{outline:2px solid #7ca38d;outline-offset:4px}.repo-link svg{opacity:.7}.repo-link:hover svg{opacity:1}

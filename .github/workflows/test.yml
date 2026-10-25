@@ -18,3 +18,4 @@ jobs:
       - run: python -c "from alibabacloud_ecs20140526.client import Client; from alibabacloud_tea_util.models import RuntimeOptions; import boto3"
       - run: node --check vpshelf/static/app.js
       - run: node tests/test_i18n.cjs
+      - run: node tests/test_dropdowns.cjs

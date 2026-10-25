@@ -10,6 +10,7 @@ Object.assign(EN,{"正常": "OK", "注意": "Review", "高风险": "High risk", 
 Object.assign(EN,{'指标 1 分钟 · 云信息 10 分钟 · 安全 15 分钟':'Metrics 1 min · Cloud 10 min · Security 15 min','流量以厂商计费周期为准':'Transfer follows the provider billing cycle'});
 Object.assign(EN,{'64位':'64-bit','安全提醒、采集异常或低流量':'Security, collection errors or low transfer'});
 Object.assign(EN,{'网络':'Network'});
+Object.assign(EN,{'查看服务器详情':'View server details'});
 const translationKeys=Object.keys(EN).sort((a,b)=>b.length-a.length);
 function t(text){text=String(text??'');if(uiLocale()==='zh')return text;if(Object.hasOwn(EN,text))return EN[text];for(const key of translationKeys)text=text.split(key).join(EN[key]);return text;}
 const originalStaticText=new WeakMap();

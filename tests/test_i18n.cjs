@@ -18,6 +18,9 @@ function setup(languages,choice){
  assert.doesNotMatch(a.el('#servers').innerHTML,/class="network-column"/);
  assert.match(a.el('#servers').innerHTML,/class="resource-line network-line"/);
  assert.match(a.el('#servers').innerHTML,/Network/);
+ assert.match(a.el('#servers').innerHTML,/role="button" tabindex="0" data-id="example"/);
+ assert.doesNotMatch(a.el('#servers').innerHTML,/details-btn/);
+ assert.doesNotMatch(a.el('#servers').innerHTML,/<button/);
  assert.equal((a.el('#servers').innerHTML.match(/class="resource-gauge"/g)||[]).length,3);
  assert.match(a.el('#servers').innerHTML,/resource-used">8.0 GiB/);
  assert.match(a.el('#servers').innerHTML,/resource-total"> \/ 20.0 GiB/);

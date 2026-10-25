@@ -72,7 +72,7 @@ def secret(value):
     return value
 
 
-def ssh_metrics(config):
+def ssh_run(config, script, timeout=20):
     target = config['host']
     # SSH aliases are allowed; options cannot be injected through destination.
     if not target or target.startswith('-') or any(c.isspace() for c in target):
@@ -84,8 +84,12 @@ def ssh_metrics(config):
     if config.get('user'):
         cmd += ['-l', config['user']]
     cmd += ['-p', str(int(config.get('port', 22))), target, 'python3 -']
-    p = subprocess.run(cmd, input=REMOTE, text=True, capture_output=True, timeout=20, check=True)
+    p = subprocess.run(cmd, input=script, text=True, capture_output=True, timeout=timeout, check=True)
     return json.loads(p.stdout)
+
+
+def ssh_metrics(config):
+    return ssh_run(config, REMOTE)
 
 
 def bandwidth(data):
@@ -121,7 +125,21 @@ def provider_info(server):
             aws_session_token=secret(c.get('session_token')))
         client=session.client('lightsail', config=Config(connect_timeout=5, read_timeout=10, retries={'max_attempts':1}))
         d=client.get_instance(instanceName=c['instance_name'])['instance']
-        return dict(region=d['location']['regionName'],state=d['state']['name'],ip=d.get('publicIpAddress'),plan=d.get('bundleId'))
+        result=dict(region=d['location']['regionName'],state=d['state']['name'],ip=d.get('publicIpAddress'),plan=d.get('bundleId'),
+            instance_name=d['name'],zone=d['location'].get('availabilityZone'),private_ip=d.get('privateIpAddress'),
+            ipv6=d.get('ipv6Addresses',[]),static_ip=d.get('isStaticIp',False),blueprint=d.get('blueprintName'),
+            created_at=d['createdAt'].isoformat() if d.get('createdAt') else None,
+            cores=d.get('hardware',{}).get('cpuCount'),ram_gb=d.get('hardware',{}).get('ramSizeInGb'))
+        bundles=client.get_bundles(includeInactive=True).get('bundles',[])
+        bundle=next((b for b in bundles if b['bundleId']==d.get('bundleId')), {})
+        result.update(monthly_price_usd=bundle.get('price'),disk_gb=bundle.get('diskSizeInGb'),transfer_gb=bundle.get('transferPerMonthInGb'))
+        from datetime import datetime, timezone, timedelta
+        end=datetime.now(timezone.utc)
+        points=client.get_instance_metric_data(instanceName=c['instance_name'],metricName='BurstCapacityPercentage',period=300,
+            startTime=end-timedelta(minutes=20),endTime=end,unit='Percent',statistics=['Average']).get('metricData',[])
+        points=sorted((p for p in points if p.get('average') is not None),key=lambda p:p['timestamp'])
+        result['burst_percent']=points[-1]['average'] if points else None
+        return result
     if provider == 'aliyun':
         from alibabacloud_ecs20140526.client import Client
         from alibabacloud_ecs20140526.models import DescribeInstancesRequest
@@ -134,5 +152,10 @@ def provider_info(server):
         if not items:
             raise ValueError('Instance not found')
         d=items[0]
-        return dict(region=d.region_id,state=d.status,plan=d.instance_type,expires_at=d.expired_time)
+        return dict(region=d.region_id,state=d.status,plan=d.instance_type,expires_at=d.expired_time,
+            instance_name=d.instance_name,zone=d.zone_id,cores=d.cpu,ram_gb=d.memory/1024 if d.memory else None,
+            ip=(d.public_ip_address.ip_address or [None])[0] if d.public_ip_address else None,
+            private_ip=(d.vpc_attributes.private_ip_address.ip_address or [None])[0] if d.vpc_attributes and d.vpc_attributes.private_ip_address else None,
+            blueprint=d.osname,created_at=d.creation_time,billing_type=d.instance_charge_type,
+            network_billing_type=d.internet_charge_type,bandwidth_mbps=d.internet_max_bandwidth_out)
     return {}

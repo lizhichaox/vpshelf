@@ -2,7 +2,7 @@ const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/st
 const root=path.join(__dirname,'../vpshelf/static');
 function setup(languages,choice){
  const nodes=new Map();const storage=new Map(choice?[['vpshelf.language',choice]]:[]);
- const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',checked:true,open:false,querySelectorAll(){return []},showModal(){this.open=true},close(){this.open=false}});return nodes.get(id)};
+ const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',checked:true,open:false,handlers:{},addEventListener(k,f){this.handlers[k]=f},querySelectorAll(){return []},showModal(){this.open=true},close(){this.open=false;this.handlers.close?.()}});return nodes.get(id)};
  const row={id:'example',name:'客户自定义名称',provider:'bandwagon',status:'online',region:'LA',host:'node',errors:[],metrics:{cpu:12,memory:35,disk:40,rx:10,tx:20},cloud_stale:true,cloud:{bandwidth:{remaining:50,total:100,remaining_percent:50,reset_at:123}}};
  const ctx=vm.createContext({document:{documentElement:{},querySelector:el,querySelectorAll:()=>[]},navigator:{languages},window:{addEventListener(){}},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async()=>({ok:true,status:200,json:async()=>({servers:[row]})}),setInterval(){},console});
  for(const file of ['i18n.js','app.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),ctx);
@@ -15,6 +15,9 @@ function setup(languages,choice){
  assert.match(a.el('#servers').innerHTML,/Memory/);assert.match(a.el('#servers').innerHTML,/Stale data/);
  assert.match(a.el('#servers').innerHTML,/#919ec3/);assert.doesNotMatch(a.el('#servers').innerHTML,/t\('/);
  assert.match(a.el('#servers').innerHTML,/客户自定义名称/);
+ vm.runInContext("rows[0].name='<img src=x onerror=alert(1)>';render()",a.ctx);
+ assert.doesNotMatch(a.el('#servers').innerHTML,/<img/);assert.match(a.el('#servers').innerHTML,/&lt;img/);
+ vm.runInContext("selected='example'",a.ctx);a.el('#detail').close();assert.equal(vm.runInContext('selected',a.ctx),null);
  assert.equal(vm.runInContext("displayName({name:'Lightsail · 新加坡'})",a.ctx),'Lightsail · Singapore');
  assert.equal(vm.runInContext("displayName({name:'CSTEIX-web · 北京'})",a.ctx),'CSTEIX-web · Beijing');
  assert.equal(vm.runInContext("t('自动 / Auto')",a.ctx),'Auto');

@@ -143,7 +143,7 @@ def handler(monitor,token):
                     data=monitor.store.history(sid)
                 else: return self.send(404,b'{}')
                 return self.send(200,json.dumps(data).encode())
-            files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/i18n.js':('i18n.js','text/javascript'),'/favicon.svg':('favicon.svg','image/svg+xml'),'/favicon.ico':('favicon.svg','image/svg+xml'),'/style.css':('style.css','text/css')}
+            files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/i18n.js':('i18n.js','text/javascript'),'/dropdowns.js':('dropdowns.js','text/javascript'),'/favicon.svg':('favicon.svg','image/svg+xml'),'/favicon.ico':('favicon.svg','image/svg+xml'),'/style.css':('style.css','text/css')}
             if url.path not in files: return self.send(404,b'Not found','text/plain')
             name,kind=files[url.path]
             self.send(200,(static/name).read_bytes(),kind)

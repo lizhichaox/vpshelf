@@ -74,7 +74,8 @@ class CoreTests(unittest.TestCase):
         from vpshelf.collector import safe_error, ProviderError
         self.assertIn('DNS',safe_error(URLError(socket.gaierror(-2,'secret'))))
         self.assertIn('TLS',safe_error(URLError(ssl.SSLCertVerificationError('secret'))))
-        self.assertIn('HTTP 403',safe_error(HTTPError('https://example/?api_key=secret',403,'secret',{},None)))
+        error=HTTPError('https://example/?api_key=secret',403,'secret',{},None)
+        self.assertIn('HTTP 403',safe_error(error));error.close()
         self.assertIn('错误码 5',safe_error(ProviderError(5)))
         for exc in [RuntimeError('secret'),ValueError('secret'),KeyError('secret')]:
             self.assertNotIn('secret',safe_error(exc))

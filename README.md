@@ -96,3 +96,37 @@ node --check vpshelf/static/app.js
 ## 目前边界
 
 手动维护服务器清单；不自动发现实例、不写入云资源、不执行重启操作。告警为界面提示，暂不发送邮件或消息。配置修改后需重启。前端刷新只读取缓存，不强制调用云 API。尚未添加开源许可证；公开仓库不等于授予第三方使用许可，许可证由仓库所有者选定。
+
+## 界面语言
+
+默认按浏览器首选语言自动选择中文或英文；页面顶部可切换自动、中文和 English，手动选择保存在当前浏览器。日期和时间随界面语言格式化，服务器自定义名称保持原样。浏览器标签页使用本地 SVG favicon，无外部依赖。
+
+## 只读安全检查
+
+每台服务器默认每 15 分钟检查一次（全局 `security_interval` 可配置为 60～86400 秒）。通过现有 SSH 连接运行只读命令，无需 Agent；不安装软件、不修改 SSH/防火墙配置。非 root 用户先尝试已有的 `sudo -n` 权限，失败后以普通用户读取；不会修改 sudo 权限或等待密码。
+
+| 规则 | 窗口与阈值 | 状态 |
+|---|---|---|
+| Failed 登录记录 | 1 小时 ≥20 条；≥100 条 | 注意；高风险 |
+| Invalid user 记录 | 1 小时 ≥10 条 | 注意 |
+| root 密码/keyboard-interactive 成功登录 | 24 小时内至少一次 | 高风险，需人工核实 |
+| 不在信任范围内的成功登录 | 配置 trusted_login_ips 后，24 小时内至少一次 | 高风险，需人工核实 |
+| PasswordAuthentication / KbdInteractiveAuthentication | 全局配置开启 | 注意，结合 MFA 和 AuthenticationMethods 核实 |
+| PermitRootLogin=yes 且密码或交互认证开启 | 全局配置允许 | 注意 |
+| PermitEmptyPasswords=yes | 全局配置开启 | 高风险配置 |
+| /var/run/reboot-required | 文件存在 | 注意 |
+| 日志不可读、为空、截断，或 sshd -T 不可读 | 不能完成覆盖 | 未知或部分检查 |
+
+状态优先级：高风险 > 注意 > 未知 > 正常。正常表示在已检查范围内未触发规则，不证明服务器没有入侵或漏洞。没有信任来源配置时不会把所有成功登录误判为异常；详情会明确显示未配置，并列出最近 5 条成功登录供核对。
+
+每台服务器可增加以下可选字段（支持 IPv4 / IPv6 地址或 CIDR）：
+
+```json
+"security": {
+  "trusted_login_ips": ["203.0.113.10", "2001:db8::/32"]
+}
+```
+
+日志来源为 systemd journal 的 ssh.service / sshd.service，最近 24 小时最多读取 5001 条。暂不读取轮转 auth.log、不保证覆盖停机或日志清理之前的事件；失败尝试统计是记录条数而非去重后的攻击者数量。sshd -T 读取全局配置，不评估 Match 条件或云安全组。检查失败后清除原来的正常结论；SSH 不可达时原记录标为过期。
+
+来源：[systemd journalctl](https://www.freedesktop.org/software/systemd/man/255/journalctl.html)、[OpenSSH 配置](https://man.openbsd.org/sshd_config)。
